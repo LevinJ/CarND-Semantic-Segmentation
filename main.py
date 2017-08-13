@@ -6,6 +6,7 @@ from distutils.version import LooseVersion
 import project_tests as tests
 
 
+
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
@@ -96,7 +97,8 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     return logits, train_op, cross_entropy_loss
 tests.test_optimize(optimize)
 
-
+g_iou = None
+g_iou_op = None
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
              correct_label, keep_prob, learning_rate):
     """
@@ -123,22 +125,25 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     for i in range(epochs):
         iter_num = 0
         for images, labels in get_batches_fn(batch_size): 
+#             break
             iter_num = iter_num + 1
             if images.shape[0] != batch_size:
                 continue
 
-            _, loss = sess.run([train_op, cross_entropy_loss],
+            _, loss,_, iou= sess.run([train_op, cross_entropy_loss,g_iou_op,g_iou],
                 feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-3})
             
 #             train_writer.add_summary(summary, i)
 
-            print("Epoch {}/{}, Loss {:.5f}...".format(i, iter_num, loss))
+            print("Epoch {}/{}, Loss {:.5f}, IOU {}".format(i, iter_num, loss, iou))
             
                 
 # tests.test_train_nn(train_nn)
 
 
 def run():
+    global g_iou
+    global g_iou_op
     num_classes = 2
     image_shape = (160, 576)
     epochs = 1
@@ -173,6 +178,8 @@ def run():
         preidction_layer = layers(layer3_out, layer4_out, layer7_out, num_classes)
         logits, train_op, cross_entropy_loss = optimize(preidction_layer, correct_label, learning_rate, num_classes)
         
+        g_iou, g_iou_op = tf.metrics.mean_iou(tf.argmax(tf.reshape(correct_label, (-1,2)), -1), tf.argmax(logits, -1), num_classes)
+        
         
        
         # TODO: Train NN using the train_nn function
@@ -180,7 +187,7 @@ def run():
              correct_label, keep_prob, learning_rate)
 
         # TODO: Save inference data using helper.save_inference_samples
-        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
+#         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
