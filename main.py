@@ -130,12 +130,14 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
             if images.shape[0] != batch_size:
                 continue
 
-            _, loss,_, iou= sess.run([train_op, cross_entropy_loss,g_iou_op,g_iou],
+#             _, loss,_, iou= sess.run([train_op, cross_entropy_loss,g_iou_op,g_iou],
+#                 feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-3})
+            _, loss= sess.run([train_op, cross_entropy_loss],
                 feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-3})
             
 #             train_writer.add_summary(summary, i)
 
-            print("Epoch {}/{}, Loss {:.5f}, IOU {}".format(i, iter_num, loss, iou))
+            print("Epoch {}/{}, Loss {:.5f}".format(i, iter_num, loss))
             
                 
 # tests.test_train_nn(train_nn)
@@ -146,8 +148,8 @@ def run():
     global g_iou_op
     num_classes = 2
     image_shape = (160, 576)
-    epochs = 1
-    batch_size = 20
+    epochs = 15
+    batch_size = 16
     correct_label = tf.placeholder(tf.float32, shape=[batch_size, image_shape[0],image_shape[1], 2])
     learning_rate = tf.placeholder(tf.float32, shape=[])
 
@@ -187,7 +189,7 @@ def run():
              correct_label, keep_prob, learning_rate)
 
         # TODO: Save inference data using helper.save_inference_samples
-#         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
