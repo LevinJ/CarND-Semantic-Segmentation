@@ -57,10 +57,10 @@ def initialize_uninitialized_variables(sess):
     sess.run(tf.variables_initializer(uninit))
 
 #-------------------------------------------------------------------------------
-def load_data_source(data_source):
-    """
-    Load a data source given it's name
-    """
-    source_module = __import__('source_'+data_source)
-    get_source    = getattr(source_module, 'get_source')
-    return get_source()
+# def load_data_source(data_source):
+#     """
+#     Load a data source given it's name
+#     """
+#     source_module = __import__('source_'+data_source)
+#     get_source    = getattr(source_module, 'get_source')
+#     return get_source()

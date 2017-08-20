@@ -50,8 +50,11 @@ def reshape(x, num_classes, upscale_factor, name):
 #-------------------------------------------------------------------------------
 class FCNVGG:
     #---------------------------------------------------------------------------
-    def __init__(self, session):
+    def __init__(self, session, num_classes):
         self.session     = session
+        self.labels = tf.placeholder(tf.float32,
+                                    shape=[None, None, None, num_classes])
+        self.label_mapper    = tf.argmax(self.labels, axis=3)
 
     #---------------------------------------------------------------------------
     def build_from_vgg(self, vgg_dir, num_classes, progress_hook):
@@ -124,18 +127,18 @@ class FCNVGG:
     def __load_vgg(self, vgg_dir):
         sess = self.session
         graph = tf.saved_model.loader.load(sess, ['vgg16'], vgg_dir)
-        all_tensors = [n.name for n in tf.get_default_graph().as_graph_def().node]
-        for n in tf.get_default_graph().as_graph_def().node:
-            if n.name == 'fc6/Conv2D':
-                print(n)
+#         all_tensors = [n.name for n in tf.get_default_graph().as_graph_def().node]
+#         for n in tf.get_default_graph().as_graph_def().node:
+#             if n.name == 'fc6/Conv2D':
+#                 print(n)
                 
-        print(np.array(all_tensors))
+#         print(np.array(all_tensors))
         self.image_input = sess.graph.get_tensor_by_name('image_input:0')
         self.keep_prob   = sess.graph.get_tensor_by_name('keep_prob:0')
         self.vgg_layer3  = sess.graph.get_tensor_by_name('layer3_out:0')
         self.vgg_layer4  = sess.graph.get_tensor_by_name('layer4_out:0')
-        self.vgg_pool5  = sess.graph.get_tensor_by_name('pool5:0')
-        self.vgg_layer6  = sess.graph.get_tensor_by_name('fc6/Relu:0')
+#         self.vgg_pool5  = sess.graph.get_tensor_by_name('pool5:0')
+#         self.vgg_layer6  = sess.graph.get_tensor_by_name('fc6/Relu:0')
         self.vgg_layer7  = sess.graph.get_tensor_by_name('layer7_out:0')
 
     #---------------------------------------------------------------------------
@@ -166,5 +169,7 @@ class FCNVGG:
         with tf.variable_scope('optimizer'):
             optimizer       = tf.train.AdamOptimizer(learning_rate)
             optimizer       = optimizer.minimize(loss)
+        self.optimizer = optimizer
+        self.loss = loss
 
-        return optimizer, loss
+        return
