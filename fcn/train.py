@@ -13,7 +13,7 @@ import tensorflow as tf
 import numpy as np
 
 from fcnvgg import FCNVGG
-from utils import *
+import utils
 from tqdm import tqdm
 from apmetrics import APMetrics
 import shutil
@@ -107,13 +107,13 @@ class TrainModel(object):
         self.training_loss_total = training_loss_total
         print("train ap={}".format(trainmetrics.get_ap()))
         return
-    def __validate(self, sess, source, net, e, validation_img, validation_img_gt, validation_img_summary_ops, summary_writer):
+    def __validate(self, sess, source, net, e):
         valmetrics = APMetrics()
         generator = source.valid_generator(args.batch_size)
         validation_loss_total = 0
-        imgs          = None
-        img_labels    = None
-        img_labels_gt = None
+        self.val_imgs          = None
+        self.val_img_labels    = None
+        self.val_img_labels_gt = None
         for x, y in generator:
             feed = {net.image_input:  x,
                     net.labels:           y,
@@ -127,29 +127,16 @@ class TrainModel(object):
             valmetrics.y_score.append(y_softmax)
             validation_loss_total += loss_batch * x.shape[0]
 
-            if imgs is None:
-                imgs          = x[:3, :, :, :]
-                img_labels    = img_classes[:3, :, :]
-                img_labels_gt = y_mapped[:3, :, :]
+            if self.val_imgs is None:
+                self.val_imgs          = x[:3, :, :, :]
+                self.val_img_labels    = img_classes[:3, :, :]
+                self.val_img_labels_gt = y_mapped[:3, :, :]
 
         validation_loss_total /= source.num_validation
         self.validation_loss_total = validation_loss_total
         
         print("val ap={}".format(valmetrics.get_ap()))
         
-        #-----------------------------------------------------------------------
-        # Write image summary every 5 epochs
-        #-----------------------------------------------------------------------
-        if e % 1 == 0:
-            imgs_inferred = draw_labels_batch(imgs, img_labels, source.label_colors)
-            imgs_gt       = draw_labels_batch(imgs, img_labels_gt, source.label_colors)
-
-            feed = {validation_img:    imgs_inferred,
-                    validation_img_gt: imgs_gt}
-            validation_img_summaries = sess.run(validation_img_summary_ops,
-                                                feed_dict=feed)
-            summary_writer.add_summary(validation_img_summaries[0], e)
-            summary_writer.add_summary(validation_img_summaries[1], e)
         return
         
     def run(self):
@@ -171,11 +158,11 @@ class TrainModel(object):
             
             
         
-            initialize_uninitialized_variables(sess)
+            utils.initialize_uninitialized_variables(sess)
             print('[i] Training...')
         
             #---------------------------------------------------------------------------
-            # Summaries
+            # set up summaries
             #---------------------------------------------------------------------------
             validation_loss = tf.placeholder(tf.float32)
             validation_loss_summary_op = tf.summary.scalar('validation_loss',
@@ -204,9 +191,9 @@ class TrainModel(object):
                 # Validate
                 #-----------------------------------------------------------------------
                 
-                self.__validate(sess, source, net, e, validation_img, validation_img_gt, validation_img_summary_ops, summary_writer)
+                self.__validate(sess, source, net, e)
                 #-----------------------------------------------------------------------
-                # Write loss summary
+                # Write  summary
                 #-----------------------------------------------------------------------
                 feed = {validation_loss: self.validation_loss_total,
                         training_loss:   self.training_loss_total}
@@ -216,6 +203,17 @@ class TrainModel(object):
         
                 summary_writer.add_summary(loss_summary[0], e)
                 summary_writer.add_summary(loss_summary[1], e)
+                
+                if e % 1 == 0:
+                    imgs_inferred = utils.draw_labels_batch(self.val_imgs, self.val_img_labels, source.label_colors)
+                    imgs_gt       = utils.draw_labels_batch(self.val_imgs, self.val_img_labels_gt, source.label_colors)
+        
+                    feed = {validation_img:    imgs_inferred,
+                            validation_img_gt: imgs_gt}
+                    validation_img_summaries = sess.run(validation_img_summary_ops,
+                                                        feed_dict=feed)
+                    summary_writer.add_summary(validation_img_summaries[0], e)
+                    summary_writer.add_summary(validation_img_summaries[1], e)
         
                 
         
