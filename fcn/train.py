@@ -158,7 +158,7 @@ class TrainModel(object):
             
             
         
-            utils.initialize_uninitialized_variables(sess)
+            
             print('[i] Training...')
         
             #---------------------------------------------------------------------------
@@ -180,6 +180,11 @@ class TrainModel(object):
                                                             validation_img_gt)
             validation_img_summary_ops = [validation_img_summary_op,
                                           validation_img_gt_summary_op]
+            
+#             print(sess.run(tf.report_uninitialized_variables()))
+
+            
+            utils.initialize_uninitialized_variables(sess)
         
             for e in range(args.epochs):
                 #-----------------------------------------------------------------------

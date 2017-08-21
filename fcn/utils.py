@@ -47,8 +47,9 @@ def initialize_uninitialized_variables(sess):
     extending an existing model.
     """
     uninit_vars    = []
+    var_list = tf.global_variables() + tf.local_variables()
     uninit_tensors = []
-    for var in tf.global_variables():
+    for var in var_list:
         uninit_vars.append(var)
         uninit_tensors.append(tf.is_variable_initialized(var))
     uninit_bools = sess.run(uninit_tensors)
