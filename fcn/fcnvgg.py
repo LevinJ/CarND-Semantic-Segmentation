@@ -156,8 +156,18 @@ class FCNVGG:
         with tf.name_scope('result'):
             self.y_softmax  = tf.nn.softmax(self.logits)
             self.classes  = tf.argmax(self.y_softmax, axis=3)
+    def mean_iou(self, ground_truth, prediction, num_classes):
+        with tf.variable_scope("resetable_mean_iou") as scope:
+            metric_op, update_op = tf.metrics.mean_iou(ground_truth, prediction, num_classes)
+            metrics_vars = tf.contrib.framework.get_variables(
+                         scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+            reset_op = tf.variables_initializer(metrics_vars)
+        return metric_op, update_op, reset_op
     def add_summary_nodes(self, summaries_dir):
         tf.summary.scalar('crossentropy', self.loss)
+        self.metric_iou__op, self.update_iou_op, self.reset_iou_op = self.mean_iou(self.label_mapper, self.classes, self.num_classes)
+        
+        tf.summary.scalar('iou', self.metric_iou__op)
         self.merged = tf.summary.merge_all()
         self.train_writer = tf.summary.FileWriter(summaries_dir+ '/train',
                                         self.session.graph)

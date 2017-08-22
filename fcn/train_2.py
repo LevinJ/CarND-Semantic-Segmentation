@@ -122,9 +122,11 @@ class TrainModel(object):
                     feed = {net.image_input:  x,
                             net.labels:           y,
                             net.keep_prob:    0.5}
-                    summary, loss_batch, _,y_softmax = sess.run([net.merged, net.loss, net.optimizer,net.y_softmax], feed_dict=feed)
+                    sess.run(net.reset_iou_op)
+                    summary, _, loss_batch, _,y_softmax = sess.run([net.merged, net.update_iou_op, net.loss, net.optimizer,net.y_softmax], feed_dict=feed)
                     net.train_writer.add_summary(summary, cur_step)
-                    print("step {}/{}: loss={}".format(cur_step, step_num, loss_batch))
+                    iou = sess.run(net.metric_iou__op)
+                    print("step {}/{}: loss={}, iou={}".format(cur_step, step_num, loss_batch, iou))
                   
         
                
