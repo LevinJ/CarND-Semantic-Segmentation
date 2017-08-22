@@ -55,6 +55,7 @@ class FCNVGG:
         self.labels = tf.placeholder(tf.float32,
                                     shape=[None, None, None, num_classes])
         self.label_mapper    = tf.argmax(self.labels, axis=3)
+        self.is_training = tf.placeholder(tf.bool, name="is_training_placeholder")
 
     #---------------------------------------------------------------------------
     def build_from_vgg(self, vgg_dir, num_classes, progress_hook):
@@ -80,9 +81,12 @@ class FCNVGG:
         sess = self.session
         saver = tf.train.import_meta_graph(metagraph_file)
         saver.restore(sess, checkpoint_file)
+#         all_tensors = [n.name for n in tf.get_default_graph().as_graph_def().node]
+#         print(all_tensors)
+        self.is_training = sess.graph.get_tensor_by_name('is_training_placeholder_1:0')
         self.image_input = sess.graph.get_tensor_by_name('image_input:0')
         self.keep_prob   = sess.graph.get_tensor_by_name('keep_prob:0')
-        self.logits      = sess.graph.get_tensor_by_name('sum/Add_1:0')
+        self.logits      = sess.graph.get_tensor_by_name('logits/logits_out/conv2d_transpose:0')
         self.softmax     = sess.graph.get_tensor_by_name('result/Softmax:0')
         self.classes     = sess.graph.get_tensor_by_name('result/ArgMax:0')
 
@@ -143,16 +147,37 @@ class FCNVGG:
 
     #---------------------------------------------------------------------------
     def __make_result_tensors(self):
-        vgg3_reshaped = reshape(self.vgg_layer3, self.num_classes,  8,
-                                'layer3_resize')
-        vgg4_reshaped = reshape(self.vgg_layer4, self.num_classes, 16,
-                                'layer4_resize')
-        vgg7_reshaped = reshape(self.vgg_layer7, self.num_classes, 32,
-                                'layer7_resize')
-
-        with tf.variable_scope('sum'):
-            self.logits   = tf.add(vgg3_reshaped,
-                                   tf.add(2*vgg4_reshaped, 4*vgg7_reshaped))
+#         vgg3_reshaped = reshape(self.vgg_layer3, self.num_classes,  8,
+#                                 'layer3_resize')
+#         vgg4_reshaped = reshape(self.vgg_layer4, self.num_classes, 16,
+#                                 'layer4_resize')
+#         vgg7_reshaped = reshape(self.vgg_layer7, self.num_classes, 32,
+#                                 'layer7_resize')
+# 
+#         with tf.variable_scope('sum'):
+#             self.logits   = tf.add(vgg3_reshaped,
+#                                    tf.add(2*vgg4_reshaped, 4*vgg7_reshaped))
+        Input = tf.layers.conv2d(self.vgg_layer7, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        Input = tf.layers.batch_normalization(Input, training=self.is_training)
+        pool_3 = tf.layers.conv2d(self.vgg_layer3, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        pool_3 = tf.layers.batch_normalization(pool_3, training=self.is_training)
+        pool_4 = tf.layers.conv2d(self.vgg_layer4, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        pool_4 = tf.layers.batch_normalization(pool_4, training=self.is_training)
+        
+        #upsample by 2 so that it can match with pool_4
+        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        Input = tf.add(Input, pool_4)
+        Input = tf.layers.batch_normalization(Input, training=self.is_training)
+        #upsample by 2 so that it can match with pool_3
+        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        Input = tf.add(Input, pool_3)
+        Input = tf.layers.batch_normalization(Input, training=self.is_training)
+        
+        #upsample by 5 so that it will be the same size as the orginal image
+        with tf.variable_scope('logits'):
+            self.logits = tf.layers.conv2d_transpose(Input, self.num_classes, 16, padding='same', strides=8,
+                                                     kernel_initializer=tf.contrib.layers.xavier_initializer(), name="logits_out")
+                
         with tf.name_scope('result'):
             self.y_softmax  = tf.nn.softmax(self.logits)
             self.classes  = tf.argmax(self.y_softmax, axis=3)
@@ -184,8 +209,10 @@ class FCNVGG:
                                   logits=logits_reshaped)
             loss            = tf.reduce_mean(losses)
         with tf.variable_scope('optimizer'):
-            optimizer       = tf.train.AdamOptimizer(learning_rate)
-            optimizer       = optimizer.minimize(loss)
+            extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(extra_update_ops):
+                optimizer       = tf.train.AdamOptimizer(learning_rate)
+                optimizer       = optimizer.minimize(loss)
         self.optimizer = optimizer
         self.loss = loss
 

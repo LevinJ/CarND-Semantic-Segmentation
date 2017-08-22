@@ -121,7 +121,8 @@ with tf.Session() as sess:
     for x, names in tqdm(generator, total=n_sample_batches,
                         desc=description, unit='batches'):
         feed = {net.image_input:  x,
-                net.keep_prob:    1}
+                net.keep_prob:    1,
+                net.is_training: False}
         img_labels = sess.run(net.classes, feed_dict=feed)
         imgs = draw_labels_batch(x, img_labels, label_colors, False)
 

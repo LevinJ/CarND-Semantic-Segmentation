@@ -30,13 +30,13 @@ parser.add_argument('--data-dir', default='/home/levin/workspace/carnd/semantic_
                     help='data directory')
 parser.add_argument('--vgg-dir', default='/home/levin/workspace/carnd/semantic_segmentation/data/vgg',
                     help='directory for the VGG-16 model')
-parser.add_argument('--epochs', type=int, default=10,
+parser.add_argument('--epochs', type=int, default=100,
                     help='number of training epochs')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='batch size')
 parser.add_argument('--tensorboard-dir', default="tb",
                     help='name of the tensorboard data directory')
-parser.add_argument('--checkpoint-interval', type=int, default=50,
+parser.add_argument('--checkpoint-interval', type=int, default=10,
                     help='checkpoint interval')
 args = parser.parse_args()
 
@@ -105,6 +105,7 @@ class TrainModel(object):
             validation_imgs    = tf.placeholder(tf.float32, shape=[None, None, None, 3])
             validation_img_summary_op = tf.summary.image('validation_img',validation_imgs)
             train_img_summary_op = tf.summary.image('train_img',validation_imgs)
+            saver           = tf.train.Saver(max_to_keep=100)
            
         
             
@@ -126,7 +127,8 @@ class TrainModel(object):
                     cur_step += 1
                     feed = {net.image_input:  x,
                             net.labels:           y,
-                            net.keep_prob:    0.5}
+                            net.keep_prob:    0.5,
+                            net.is_training: True}
                     
                     sess.run(net.reset_iou_op)
                     summary, _, loss_batch, _,label_mapper, img_classes = sess.run([net.merged, net.update_iou_op, 
@@ -135,7 +137,7 @@ class TrainModel(object):
                     iou = sess.run(net.metric_iou__op)
                     print("step {}/{}: loss={}, iou={}".format(cur_step, step_num, loss_batch, iou))
                     #output trainig input image
-                    if cur_step % 10 == 0:
+                    if (cur_step+1) % 10 == 0:
                         val_imgs = x[:1,:,:,:]
                         val_img_labels = img_classes[:1, :, :]
                         val_img_labels_gt = label_mapper[:1, :, :]
@@ -148,13 +150,14 @@ class TrainModel(object):
                                                             feed_dict={validation_imgs: all_imgs})        
                         net.train_writer.add_summary(summary, cur_step)
                     #monitor inference on valiaton data
-                    if cur_step % 10 == 0:
+                    if (cur_step+1) % 10 == 0:
                         val_generator = source.valid_generator(args.batch_size)
                         #jut try out one batch
                         x, y  = next(val_generator)
                         feed = {net.image_input:  x,
                             net.labels:           y,
-                            net.keep_prob:    1.0}
+                            net.keep_prob:    1.0,
+                            net.is_training: False}
                     
                         sess.run(net.reset_iou_op)
                         summary, _, loss_batch,label_mapper, img_classes = sess.run([net.merged, net.update_iou_op, 
@@ -174,7 +177,12 @@ class TrainModel(object):
                         summary = sess.run(validation_img_summary_op,
                                                             feed_dict={validation_imgs: all_imgs})        
                         net.val_writer.add_summary(summary, cur_step)
-                        
+                    
+                if (e+1) % args.checkpoint_interval == 0:
+                    checkpoint = '{}/e{}.ckpt'.format(args.name, e+1)
+                    saver.save(sess, checkpoint)
+                    print('Checkpoint saved:', checkpoint)
+                            
                   
         
                
