@@ -101,6 +101,10 @@ class TrainModel(object):
         
             net.get_optimizer(net.labels)
             net.add_summary_nodes(args.tensorboard_dir)
+            
+            validation_imgs    = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+            validation_img_summary_op = tf.summary.image('validation_img',validation_imgs)
+           
         
             
             print('[i] Training...')
@@ -122,11 +126,27 @@ class TrainModel(object):
                     feed = {net.image_input:  x,
                             net.labels:           y,
                             net.keep_prob:    0.5}
+                    
                     sess.run(net.reset_iou_op)
-                    summary, _, loss_batch, _,y_softmax = sess.run([net.merged, net.update_iou_op, net.loss, net.optimizer,net.y_softmax], feed_dict=feed)
+                    summary, _, loss_batch, _,label_mapper, img_classes = sess.run([net.merged, net.update_iou_op, 
+                                                                                    net.loss, net.optimizer,net.label_mapper, net.classes], feed_dict=feed)
                     net.train_writer.add_summary(summary, cur_step)
                     iou = sess.run(net.metric_iou__op)
                     print("step {}/{}: loss={}, iou={}".format(cur_step, step_num, loss_batch, iou))
+                    #output trainig input image
+                    if cur_step % 10 == 0:
+                        val_imgs = x[:1,:,:,:]
+                        val_img_labels = img_classes[:1, :, :]
+                        val_img_labels_gt = label_mapper[:1, :, :]
+                        imgs_inferred = utils.draw_labels_batch(val_imgs, val_img_labels, source.label_colors)
+                        imgs_gt       = utils.draw_labels_batch(val_imgs, val_img_labels_gt, source.label_colors)
+                        val_imgs = utils.convert_rgb_batch(val_imgs)
+                        all_imgs = np.concatenate([val_imgs, imgs_gt, imgs_inferred], axis = 0)
+
+                        summary = sess.run(validation_img_summary_op,
+                                                            feed_dict={validation_imgs: all_imgs})        
+                        net.train_writer.add_summary(summary, cur_step)
+                    
                   
         
                

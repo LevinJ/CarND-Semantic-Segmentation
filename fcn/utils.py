@@ -8,6 +8,7 @@ import cv2
 import tensorflow as tf
 import numpy as np
 
+
 #-------------------------------------------------------------------------------
 def draw_labels(img, labels, label_colors, convert=True):
     """
@@ -25,6 +26,14 @@ def draw_labels(img, labels, label_colors, convert=True):
     if not convert:
         return img
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def convert_rgb_batch(imgs):
+    res_imgs = np.zeros_like(imgs)
+    for i in range(imgs.shape[0]):
+        res_imgs[i, :,:,:] = cv2.cvtColor(imgs[i], cv2.COLOR_BGR2RGB)
+    
+    return res_imgs
 
 #-------------------------------------------------------------------------------
 def draw_labels_batch(imgs, labels, label_colors, convert=True):
