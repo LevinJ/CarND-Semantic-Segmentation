@@ -156,6 +156,13 @@ class FCNVGG:
         with tf.name_scope('result'):
             self.y_softmax  = tf.nn.softmax(self.logits)
             self.classes  = tf.argmax(self.y_softmax, axis=3)
+    def add_summary_nodes(self, summaries_dir):
+        tf.summary.scalar('crossentropy', self.loss)
+        self.merged = tf.summary.merge_all()
+        self.train_writer = tf.summary.FileWriter(summaries_dir+ '/train',
+                                        self.session.graph)
+        self.val_writer = tf.summary.FileWriter(summaries_dir + '/val')
+        return
 
     #---------------------------------------------------------------------------
     def get_optimizer(self, labels, learning_rate=0.0001):
