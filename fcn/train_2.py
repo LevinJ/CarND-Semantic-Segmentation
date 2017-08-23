@@ -134,7 +134,8 @@ class TrainModel(object):
                     summary, _, loss_batch, _,label_mapper, img_classes = sess.run([net.merged, net.update_iou_op, 
                                                                                     net.loss, net.optimizer,net.label_mapper, net.classes], feed_dict=feed)
                     net.train_writer.add_summary(summary, cur_step)
-                    iou = sess.run(net.metric_iou__op)
+                    iou, summary = sess.run([net.metric_iou__op, net.merged_update])
+                    net.train_writer.add_summary(summary, cur_step)
                     print("step {}/{}: loss={}, iou={}".format(cur_step, step_num, loss_batch, iou))
                     #output trainig input image
                     if (cur_step+1) % 10 == 0:
@@ -163,7 +164,8 @@ class TrainModel(object):
                         summary, _, loss_batch,label_mapper, img_classes = sess.run([net.merged, net.update_iou_op, 
                                                                                         net.loss, net.label_mapper, net.classes], feed_dict=feed)
                         net.val_writer.add_summary(summary, cur_step)
-                        iou = sess.run(net.metric_iou__op)
+                        iou, summary = sess.run([net.metric_iou__op, net.merged_update])
+                        net.val_writer.add_summary(summary, cur_step)
                         print("#####validation: step {}/{}: loss={}, iou={}#####".format(cur_step, step_num, loss_batch, iou))
                         
                         val_imgs = x[:1,:,:,:]

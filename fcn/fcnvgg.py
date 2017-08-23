@@ -189,11 +189,11 @@ class FCNVGG:
             reset_op = tf.variables_initializer(metrics_vars)
         return metric_op, update_op, reset_op
     def add_summary_nodes(self, summaries_dir):
-        tf.summary.scalar('crossentropy', self.loss)
+        
         self.metric_iou__op, self.update_iou_op, self.reset_iou_op = self.mean_iou(self.label_mapper, self.classes, self.num_classes)
         
-        tf.summary.scalar('iou', self.metric_iou__op)
-        self.merged = tf.summary.merge_all()
+        self.merged_update = tf.summary.merge([tf.summary.scalar('iou', self.metric_iou__op)])
+        self.merged = tf.summary.merge([tf.summary.scalar('crossentropy', self.loss)])
         self.train_writer = tf.summary.FileWriter(summaries_dir+ '/train',
                                         self.session.graph)
         self.val_writer = tf.summary.FileWriter(summaries_dir + '/val')
