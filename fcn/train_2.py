@@ -36,7 +36,7 @@ parser.add_argument('--batch-size', type=int, default=20,
                     help='batch size')
 parser.add_argument('--tensorboard-dir', default="tb",
                     help='name of the tensorboard data directory')
-parser.add_argument('--checkpoint-interval', type=int, default=10,
+parser.add_argument('--checkpoint-interval', type=int, default=50,
                     help='checkpoint interval')
 args = parser.parse_args()
 
