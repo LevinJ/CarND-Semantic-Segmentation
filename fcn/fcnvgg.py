@@ -157,30 +157,59 @@ class FCNVGG:
 #         with tf.variable_scope('sum'):
 #             self.logits   = tf.add(vgg3_reshaped,
 #                                    tf.add(2*vgg4_reshaped, 4*vgg7_reshaped))
-        Input = tf.layers.conv2d(self.vgg_layer7, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
-        Input = tf.layers.batch_normalization(Input, training=self.is_training)
-        pool_3 = tf.layers.conv2d(self.vgg_layer3, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
-        pool_3 = tf.layers.batch_normalization(pool_3, training=self.is_training)
-        pool_4 = tf.layers.conv2d(self.vgg_layer4, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
-        pool_4 = tf.layers.batch_normalization(pool_4, training=self.is_training)
+       
+#         Input = tf.layers.conv2d(self.vgg_layer7, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+#         Input = tf.layers.batch_normalization(Input, training=self.is_training)
+#         pool_3 = tf.layers.conv2d(self.vgg_layer3, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+#         pool_3 = tf.layers.batch_normalization(pool_3, training=self.is_training)
+#         pool_4 = tf.layers.conv2d(self.vgg_layer4, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.contrib.layers.xavier_initializer())
+#         pool_4 = tf.layers.batch_normalization(pool_4, training=self.is_training)
+#         
+#         #upsample by 2 so that it can match with pool_4
+#         Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+#         Input = tf.add(Input, pool_4)
+#         Input = tf.layers.batch_normalization(Input, training=self.is_training)
+#         #upsample by 2 so that it can match with pool_3
+#         Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+#         Input = tf.add(Input, pool_3)
+#         Input = tf.layers.batch_normalization(Input, training=self.is_training)
+#         
+#         #upsample by 5 so that it will be the same size as the orginal image
+#         with tf.variable_scope('logits'):
+#             self.logits = tf.layers.conv2d_transpose(Input, self.num_classes, 16, padding='same', strides=8,
+#                                                      kernel_initializer=tf.contrib.layers.xavier_initializer(), name="logits_out")
+#                 
+#         with tf.name_scope('result'):
+#             self.y_softmax  = tf.nn.softmax(self.logits)
+#             self.classes  = tf.argmax(self.y_softmax, axis=3)
+        
+        
+        Input = tf.layers.conv2d(self.vgg_layer7, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+        
+        pool_3 = tf.layers.conv2d(self.vgg_layer3, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+       
+        pool_4 = tf.layers.conv2d(self.vgg_layer4, self.num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+       
         
         #upsample by 2 so that it can match with pool_4
-        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
         Input = tf.add(Input, pool_4)
-        Input = tf.layers.batch_normalization(Input, training=self.is_training)
+       
         #upsample by 2 so that it can match with pool_3
-        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.contrib.layers.xavier_initializer())
+        Input = tf.layers.conv2d_transpose(Input, self.num_classes, 4, padding='same', strides=2,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
         Input = tf.add(Input, pool_3)
-        Input = tf.layers.batch_normalization(Input, training=self.is_training)
+        
         
         #upsample by 5 so that it will be the same size as the orginal image
         with tf.variable_scope('logits'):
             self.logits = tf.layers.conv2d_transpose(Input, self.num_classes, 16, padding='same', strides=8,
-                                                     kernel_initializer=tf.contrib.layers.xavier_initializer(), name="logits_out")
+                                                     kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3), name="logits_out")
                 
         with tf.name_scope('result'):
             self.y_softmax  = tf.nn.softmax(self.logits)
             self.classes  = tf.argmax(self.y_softmax, axis=3)
+            
+            
     def mean_iou(self, ground_truth, prediction, num_classes):
         with tf.variable_scope("resetable_mean_iou") as scope:
             metric_op, update_op = tf.metrics.mean_iou(ground_truth, prediction, num_classes)
