@@ -47,7 +47,7 @@ def load_vgg(sess, vgg_path):
     
     return image_input, keep_prob, layer3_out, layer4_out, layer7_out
         
-# tests.test_load_vgg(load_vgg, tf)
+tests.test_load_vgg(load_vgg, tf)
 
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
@@ -60,23 +60,23 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
     
-    ###May need to come back and check the weight initializer, for now, just use the default one###
-    #complete the encoder 
-    Input = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same', strides=1)
-    
-    #complete the decoder
-    pool_3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same', strides=1)
-    pool_4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same', strides=1)
+    Input = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+        
+    pool_3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+   
+    pool_4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same', strides=1,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
+   
     
     #upsample by 2 so that it can match with pool_4
-    Input = tf.layers.conv2d_transpose(Input, num_classes, 4, padding='same', strides=2)
+    Input = tf.layers.conv2d_transpose(Input, num_classes, 4, padding='same', strides=2,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
     Input = tf.add(Input, pool_4)
+   
     #upsample by 2 so that it can match with pool_3
-    Input = tf.layers.conv2d_transpose(Input, num_classes, 4, padding='same', strides=2)
+    Input = tf.layers.conv2d_transpose(Input, num_classes, 4, padding='same', strides=2,kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3))
     Input = tf.add(Input, pool_3)
     
-    #upsample by 5 so that it will be the same size as the orginal image
-    Input = tf.layers.conv2d_transpose(Input, num_classes, 16, padding='same', strides=8)
+    Input = tf.layers.conv2d_transpose(Input, num_classes, 16, padding='same', strides=8,
+                                                     kernel_initializer=tf.truncated_normal_initializer(stddev = 1e-3), name="logits_out")
     return Input
 tests.test_layers(layers)
 
@@ -97,8 +97,24 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     return logits, train_op, cross_entropy_loss
 tests.test_optimize(optimize)
 
-g_iou = None
-g_iou_op = None
+
+def initialize_uninitialized_variables(sess):
+    """
+    Only initialize the weights that have not yet been initialized by other
+    means, such as importing a metagraph and a checkpoint. It's useful when
+    extending an existing model.
+    """
+    uninit_vars    = []
+    var_list = tf.global_variables() + tf.local_variables()
+    uninit_tensors = []
+    for var in var_list:
+        uninit_vars.append(var)
+        uninit_tensors.append(tf.is_variable_initialized(var))
+    uninit_bools = sess.run(uninit_tensors)
+    uninit = zip(uninit_bools, uninit_vars)
+    uninit = [var for init, var in uninit if not init]
+    sess.run(tf.variables_initializer(uninit))
+
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
              correct_label, keep_prob, learning_rate):
     """
@@ -116,41 +132,28 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     """
     
 
-    train_writer = tf.summary.FileWriter('./logs', sess.graph)
-    merge = tf.summary.merge_all()
-    sess.run(tf.global_variables_initializer())
-    # need to initialize local variables for this to run `tf.metrics.mean_iou`
-    sess.run(tf.local_variables_initializer())
-
+    initialize_uninitialized_variables(sess)
     for i in range(epochs):
         iter_num = 0
         for images, labels in get_batches_fn(batch_size): 
-#             break
             iter_num = iter_num + 1
-            if images.shape[0] != batch_size:
-                continue
 
-#             _, loss,_, iou= sess.run([train_op, cross_entropy_loss,g_iou_op,g_iou],
-#                 feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-3})
             _, loss= sess.run([train_op, cross_entropy_loss],
-                feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-3})
+                feed_dict={input_image: images, correct_label: labels, keep_prob: 1.0, learning_rate:1e-4})
             
-#             train_writer.add_summary(summary, i)
-
             print("Epoch {}/{}, Loss {:.5f}".format(i, iter_num, loss))
             
                 
-# tests.test_train_nn(train_nn)
+tests.test_train_nn(train_nn)
 
 
 def run():
-    global g_iou
-    global g_iou_op
+
     num_classes = 2
     image_shape = (160, 576)
-    epochs = 15
-    batch_size = 16
-    correct_label = tf.placeholder(tf.float32, shape=[batch_size, image_shape[0],image_shape[1], 2])
+    epochs = 30
+    batch_size = 20
+    correct_label = tf.placeholder(tf.float32, shape=[None, image_shape[0],image_shape[1], 2])
     learning_rate = tf.placeholder(tf.float32, shape=[])
 
     data_dir = './data'
@@ -172,17 +175,11 @@ def run():
         # Create function to get batches
         get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
 
-        # OPTIONAL: Augment Images for better results
-        #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
-
-        # TODO: Build NN using load_vgg, layers, and optimize function
+       
+        # Build NN using load_vgg, layers, and optimize function
         image_input, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
         preidction_layer = layers(layer3_out, layer4_out, layer7_out, num_classes)
         logits, train_op, cross_entropy_loss = optimize(preidction_layer, correct_label, learning_rate, num_classes)
-        
-        g_iou, g_iou_op = tf.metrics.mean_iou(tf.argmax(tf.reshape(correct_label, (-1,2)), -1), tf.argmax(logits, -1), num_classes)
-        
-        
        
         # TODO: Train NN using the train_nn function
         train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, image_input,
@@ -190,6 +187,7 @@ def run():
 
         # TODO: Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
+        print("Done")
 
         # OPTIONAL: Apply the trained model to a video
 
