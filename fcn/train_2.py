@@ -115,7 +115,7 @@ class TrainModel(object):
             utils.initialize_uninitialized_variables(sess)
             n_train_batches = int(math.ceil(source.num_training/args.batch_size))
             
-            cur_step = -1
+            cur_step = 0
             step_num = n_train_batches * args.epochs
         
             for e in range(args.epochs):
@@ -138,7 +138,7 @@ class TrainModel(object):
                     net.train_writer.add_summary(summary, cur_step)
                     print("step {}/{}: loss={}, iou={}".format(cur_step, step_num, loss_batch, iou))
                     #output trainig input image
-                    if (cur_step+1) % 10 == 0:
+                    if (cur_step) % 10 == 0:
                         val_imgs = x[:1,:,:,:]
                         val_img_labels = img_classes[:1, :, :]
                         val_img_labels_gt = label_mapper[:1, :, :]
@@ -151,7 +151,7 @@ class TrainModel(object):
                                                             feed_dict={validation_imgs: all_imgs})        
                         net.train_writer.add_summary(summary, cur_step)
                     #monitor inference on valiaton data
-                    if (cur_step+1) % 10 == 0:
+                    if (cur_step) % 10 == 0:
                         val_generator = source.valid_generator(args.batch_size)
                         #jut try out one batch
                         x, y  = next(val_generator)
