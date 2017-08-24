@@ -30,13 +30,13 @@ parser.add_argument('--data-dir', default='/home/levin/workspace/carnd/semantic_
                     help='data directory')
 parser.add_argument('--vgg-dir', default='/home/levin/workspace/carnd/semantic_segmentation/data/vgg',
                     help='directory for the VGG-16 model')
-parser.add_argument('--epochs', type=int, default=10,
+parser.add_argument('--epochs', type=int, default=30,
                     help='number of training epochs')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='batch size')
 parser.add_argument('--tensorboard-dir', default="tb",
                     help='name of the tensorboard data directory')
-parser.add_argument('--checkpoint-interval', type=int, default=50,
+parser.add_argument('--checkpoint-interval', type=int, default=10,
                     help='checkpoint interval')
 args = parser.parse_args()
 
@@ -86,58 +86,7 @@ class TrainModel(object):
             print('[!] Unable to load data source:', str(e))
             sys.exit(1)
         return
-    def __load_model(self):
-        return
-    def __train(self, sess, source, net,e):
-        n_train_batches = int(math.ceil(source.num_training/args.batch_size))
-        trainmetrics = APMetrics()
-        generator = source.train_generator(args.batch_size)
-        description = '[i] Epoch {:>2}/{}'.format(e+1, args.epochs)
-        training_loss_total = 0
-        for x, y in tqdm(generator, total=n_train_batches,
-                         desc=description, unit='batches'):
-            feed = {net.image_input:  x,
-                    net.labels:           y,
-                    net.keep_prob:    0.5}
-            loss_batch, _,y_softmax = sess.run([net.loss, net.optimizer,net.y_softmax], feed_dict=feed)
-            trainmetrics.y_true.append(y)
-            trainmetrics.y_score.append(y_softmax)
-            training_loss_total += loss_batch * x.shape[0]
-        training_loss_total /= source.num_training
-        self.training_loss_total = training_loss_total
-        print("train ap={}".format(trainmetrics.get_ap()))
-        return
-    def __validate(self, sess, source, net, e):
-        valmetrics = APMetrics()
-        generator = source.valid_generator(args.batch_size)
-        validation_loss_total = 0
-        self.val_imgs          = None
-        self.val_img_labels    = None
-        self.val_img_labels_gt = None
-        for x, y in generator:
-            feed = {net.image_input:  x,
-                    net.labels:           y,
-                    net.keep_prob:    1}
-            loss_batch, img_classes, y_mapped, y_softmax = sess.run([net.loss,
-                                                          net.classes,
-                                                          net.label_mapper,
-                                                          net.y_softmax],
-                                                         feed_dict=feed)
-            valmetrics.y_true.append(y)
-            valmetrics.y_score.append(y_softmax)
-            validation_loss_total += loss_batch * x.shape[0]
-
-            if self.val_imgs is None:
-                self.val_imgs          = x[:3, :, :, :]
-                self.val_img_labels    = img_classes[:3, :, :]
-                self.val_img_labels_gt = y_mapped[:3, :, :]
-
-        validation_loss_total /= source.num_validation
-        self.validation_loss_total = validation_loss_total
-        
-        print("val ap={}".format(valmetrics.get_ap()))
-        
-        return
+   
         
     def run(self):
         self.__disp_config()
@@ -151,88 +100,95 @@ class TrainModel(object):
             net.build_from_vgg(args.vgg_dir, source.num_classes, progress_hook='tqdm')
         
             net.get_optimizer(net.labels)
-        
-            summary_writer  = tf.summary.FileWriter(args.tensorboard_dir, sess.graph)
-            saver           = tf.train.Saver(max_to_keep=10)
-        
+            net.add_summary_nodes(args.tensorboard_dir)
             
-            
+            validation_imgs    = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+            validation_img_summary_op = tf.summary.image('validation_img',validation_imgs)
+            train_img_summary_op = tf.summary.image('train_img',validation_imgs)
+            saver           = tf.train.Saver(max_to_keep=100)
+           
         
             
             print('[i] Training...')
         
-            #---------------------------------------------------------------------------
-            # set up summaries
-            #---------------------------------------------------------------------------
-            validation_loss = tf.placeholder(tf.float32)
-            validation_loss_summary_op = tf.summary.scalar('validation_loss',
-                                                           validation_loss)
-        
-            training_loss = tf.placeholder(tf.float32)
-            training_loss_summary_op = tf.summary.scalar('training_loss',
-                                                         training_loss)
-        
-            validation_img    = tf.placeholder(tf.float32, shape=[None, None, None, 3])
-            validation_img_gt = tf.placeholder(tf.float32, shape=[None, None, None, 3])
-            validation_img_summary_op = tf.summary.image('validation_img',
-                                                         validation_img)
-            validation_img_gt_summary_op = tf.summary.image('validation_img_gt',
-                                                            validation_img_gt)
-            validation_img_summary_ops = [validation_img_summary_op,
-                                          validation_img_gt_summary_op]
-            
-#             print(sess.run(tf.report_uninitialized_variables()))
-
             
             utils.initialize_uninitialized_variables(sess)
+            n_train_batches = int(math.ceil(source.num_training/args.batch_size))
+            
+            cur_step = 0
+            step_num = n_train_batches * args.epochs
         
             for e in range(args.epochs):
-                #-----------------------------------------------------------------------
-                # Train
-                #-----------------------------------------------------------------------
-                self.__train(sess, source, net,e)
-        
-                #-----------------------------------------------------------------------
-                # Validate
-                #-----------------------------------------------------------------------
-                
-                self.__validate(sess, source, net, e)
-                #-----------------------------------------------------------------------
-                # Write  summary
-                #-----------------------------------------------------------------------
-                feed = {validation_loss: self.validation_loss_total,
-                        training_loss:   self.training_loss_total}
-                loss_summary = sess.run([validation_loss_summary_op,
-                                         training_loss_summary_op],
-                                        feed_dict=feed)
-        
-                summary_writer.add_summary(loss_summary[0], e)
-                summary_writer.add_summary(loss_summary[1], e)
-                
-                if e % 1 == 0:
-                    imgs_inferred = utils.draw_labels_batch(self.val_imgs, self.val_img_labels, source.label_colors)
-                    imgs_gt       = utils.draw_labels_batch(self.val_imgs, self.val_img_labels_gt, source.label_colors)
-        
-                    feed = {validation_img:    imgs_inferred,
-                            validation_img_gt: imgs_gt}
-                    validation_img_summaries = sess.run(validation_img_summary_ops,
-                                                        feed_dict=feed)
-                    summary_writer.add_summary(validation_img_summaries[0], e)
-                    summary_writer.add_summary(validation_img_summaries[1], e)
-        
-                
-        
-                #-----------------------------------------------------------------------
-                # Save a checktpoint
-                #-----------------------------------------------------------------------
+              
+                train_generator = source.train_generator(args.batch_size)
+                 
+             
+                for x, y in train_generator:
+                    cur_step += 1
+                    feed = {net.image_input:  x,
+                            net.labels:           y,
+                            net.keep_prob:    0.5,
+                            net.is_training: True}
+                    
+                    sess.run(net.reset_iou_op)
+                    summary, _, loss_batch, _,label_mapper, img_classes,f1,accuracy = sess.run([net.merged, net.update_iou_op, 
+                                                                                    net.loss, net.optimizer,net.label_mapper, 
+                                                                                    net.classes,net.f1,net.accuracy], feed_dict=feed)
+                    net.train_writer.add_summary(summary, cur_step)
+                    iou, summary = sess.run([net.metric_iou__op, net.merged_update])
+                    net.train_writer.add_summary(summary, cur_step)
+                    print("step {}:{}/{}: loss={}, iou={}, f1={}, acc={}".format(e+1, cur_step, step_num, loss_batch, iou,f1,accuracy))
+                    #output trainig input image
+                    if (cur_step) % 10 == 0:
+                        val_imgs = x[:1,:,:,:]
+                        val_img_labels = img_classes[:1, :, :]
+                        val_img_labels_gt = label_mapper[:1, :, :]
+                        imgs_inferred = utils.draw_labels_batch(val_imgs, val_img_labels, source.label_colors)
+                        imgs_gt       = utils.draw_labels_batch(val_imgs, val_img_labels_gt, source.label_colors)
+                        val_imgs = utils.convert_rgb_batch(val_imgs)
+                        all_imgs = np.concatenate([val_imgs, imgs_gt, imgs_inferred], axis = 0)
+
+                        summary = sess.run(train_img_summary_op,
+                                                            feed_dict={validation_imgs: all_imgs})        
+                        net.train_writer.add_summary(summary, cur_step)
+                    #monitor inference on valiaton data
+                    if (cur_step) % 10 == 0:
+                        val_generator = source.valid_generator(args.batch_size)
+                        #jut try out one batch
+                        x, y  = next(val_generator)
+                        feed = {net.image_input:  x,
+                            net.labels:           y,
+                            net.keep_prob:    1.0,
+                            net.is_training: False}
+                    
+                        sess.run(net.reset_iou_op)
+                        summary, _, loss_batch,label_mapper, img_classes,f1,accuracy = sess.run([net.merged, net.update_iou_op, 
+                                                                                        net.loss, net.label_mapper, net.classes,net.f1,net.accuracy], feed_dict=feed)
+                        net.val_writer.add_summary(summary, cur_step)
+                        iou, summary = sess.run([net.metric_iou__op, net.merged_update])
+                        net.val_writer.add_summary(summary, cur_step)
+                        print("#####validation: step {}/{}: loss={}, iou={}, f1={}, acc={}#####".format(cur_step, step_num, loss_batch, iou,f1,accuracy))
+                        
+                        val_imgs = x[:1,:,:,:]
+                        val_img_labels = img_classes[:1, :, :]
+                        val_img_labels_gt = label_mapper[:1, :, :]
+                        imgs_inferred = utils.draw_labels_batch(val_imgs, val_img_labels, source.label_colors)
+                        imgs_gt       = utils.draw_labels_batch(val_imgs, val_img_labels_gt, source.label_colors)
+                        val_imgs = utils.convert_rgb_batch(val_imgs)
+                        all_imgs = np.concatenate([val_imgs, imgs_gt, imgs_inferred], axis = 0)
+
+                        summary = sess.run(validation_img_summary_op,
+                                                            feed_dict={validation_imgs: all_imgs})        
+                        net.val_writer.add_summary(summary, cur_step)
+                    
                 if (e+1) % args.checkpoint_interval == 0:
                     checkpoint = '{}/e{}.ckpt'.format(args.name, e+1)
                     saver.save(sess, checkpoint)
                     print('Checkpoint saved:', checkpoint)
+                            
+                  
         
-            checkpoint = '{}/final.ckpt'.format(args.name)
-            saver.save(sess, checkpoint)
-            print('Checkpoint saved:', checkpoint)
+               
         return
     
 if __name__ == "__main__":   

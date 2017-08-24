@@ -224,9 +224,9 @@ class FCNVGG:
         
         self.merged_update = tf.summary.merge([tf.summary.scalar('iou', self.metric_iou__op)])
         
-        precision_summary, recall_summary, f1_summary = f1metrics.metrics_f1_summary(self.label_mapper, self.classes)
+        precision_summary, recall_summary, f1_summary,accuracy_summary, self.f1,self.accuracy = f1metrics.metrics_f1_summary(self.label_mapper, self.classes)
         loss_summary = tf.summary.scalar('loss', self.loss)
-        self.merged = tf.summary.merge([loss_summary, precision_summary, recall_summary, f1_summary])
+        self.merged = tf.summary.merge([loss_summary, precision_summary, recall_summary, f1_summary,accuracy_summary])
         self.train_writer = tf.summary.FileWriter(summaries_dir+ '/train',
                                         self.session.graph)
         self.val_writer = tf.summary.FileWriter(summaries_dir + '/val')
