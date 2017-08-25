@@ -84,4 +84,9 @@ Download the [Kitti Road dataset](http://www.cvlibs.net/datasets/kitti/eval_road
 Run the following command to run the project:
 ```
 python main.py
+
 ```
+
+## Acknowledgement
+
+While exploring/experimenting on the model implemention, I referenced the [nice implementation](https://github.com/ljanyst/image-segmentation-fcn) from Lukasz Janyst. Also a lot of thanks go to him for the helpful discussion about this project over slack.
